@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/perl5/bin/perl -w
 
 # Pushes zpool metrics to carbon: read ops, write ops, read mb/s , write mb/s
 # Uses zpool iostat
@@ -6,8 +6,8 @@
 #
 # Graphite path: iostat.{hostname}.{zfs}.metric
 #
-# Iostat defaults are 1 second updates for 5 seconds, for which an average is calculated
-# (so 4 iterations as the first one is an average)
+# Using 10 iterations of  iostat with 5 second delay (50 seconds total), for which an average is calculated
+# (so 9 iterations as the first one is an average)
 # This can eg be run every minute
 #
 
@@ -17,12 +17,12 @@ use IO::Socket;
 
 ######################################
 my $debug=0;
-my $iostat_iterations=5;
-my $carbon_server='metrics.yourdomain.com';
+my $iostat_iterations=10;
+my $carbon_server='graphite';
 my $carbon_port='2003';
 ######################################
 
-my @iostat=`zpool iostat 1 $iostat_iterations`;
+my @iostat=`zpool iostat 5 $iostat_iterations`;
 my $time=time();
 my $hostname=`hostname`;
 
@@ -34,7 +34,7 @@ foreach my $line (@iostat) {
 	chomp $line;
 	if ( $line =~ /--/ ) { next; }
 	my ($zfs, $rops, $wops, $rmb, $wmb);
-	if ( $line =~ /(\S+)\s+\S+\s+\S+\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)/ ) {
+	if ( $line =~ /(\S+)\s+\S+\s+\S+\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/ ) {
 		$zfs=$1;
 		$rops=$2;
 		$wops=$3;
@@ -56,6 +56,17 @@ foreach my $line (@iostat) {
 		} elsif ( $wmb =~ /(\S+)K/ ) { 
 			$wmb=$1/1024;
 		}
+		                if ( $rops =~ /(\S+)M/ ) {
+                         $rops=$1*1000*1000;
+                } elsif ( $rops =~ /(\S+)K/ ) {
+                        $rops=$1*1000;
+                }
+        
+                if ( $wops =~ /(\S+)M/ ) {
+                         $wops=$1*1000*1000;
+                } elsif ( $wops =~ /(\S+)K/ ) {
+                        $wops=$1*1000;
+                }
 
 		print "$line\n" if $debug;
 		print "zfs: $zfs  -- rops: $rops -- wops: $wops -- rmb: $rmb -- wmb: $wmb\n\n" if $debug;
